@@ -1,0 +1,2 @@
+C:\Users\PC-DOS\AppData\Local\Temporary Projects\WUCabExtractor\bin\Debug\WUCabExtractor.exe.config
+D:\WUCabExtractor\WUCabExtractor\bin\Debug\WUCabExtractor.exe.config

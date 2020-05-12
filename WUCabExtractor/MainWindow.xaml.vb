@@ -210,8 +210,16 @@ Class MainWindow
                         .CabPath = FileElement.GetAttribute("cabpath").ToString
                     End With
                     If Not TempFileInfo.Name.StartsWith("$(runtime.system32)\") And Not TempFileInfo.Name.StartsWith("$(runtime.bootdrive)\") And Not TempFileInfo.Name.StartsWith("$(runtime.drivers)\") Then
-                        AddMessage("已忽略一个文件节点，因为它没有描述文件复制信息。")
-                        Continue For
+                        If File.Exists(InputDirectory & TempFileInfo.Name) Then
+                            TempFileInfo.Name = InputDirectory & TempFileInfo.Name
+                        ElseIf File.Exists(ResourceDirectory & TempFileInfo.Name) Then
+                            TempFileInfo.Name = ResourceDirectory & TempFileInfo.Name
+                        ElseIf File.Exists(ResourceDirectory & "Windows\WinSxS\Manifests\" & TempFileInfo.Name) Then
+                            TempFileInfo.Name = ResourceDirectory & "Windows\WinSxS\Manifests\" & TempFileInfo.Name
+                        Else
+                            AddMessage("已忽略一个文件节点，因为它没有描述文件复制信息。")
+                            Continue For
+                        End If
                     End If
                     With TempFileInfo
                         If .Name.StartsWith("$(runtime.system32)\") Then
@@ -227,15 +235,11 @@ Class MainWindow
                     End With
                     Dim CopyDest As String
                     If IsKeepStructure Then
-                        CopyDest = FileElement.GetAttribute("name").ToString
-                        If CopyDest.StartsWith("$(runtime.system32)\") Then
-                            CopyDest = CopyDest.Replace("$(runtime.system32)\", OutputDiectory & "Windows\System32\")
-                        End If
-                        If CopyDest.StartsWith("$(runtime.bootdrive)\") Then
-                            CopyDest = CopyDest.Replace("$(runtime.bootdrive)\", OutputDiectory)
-                        End If
-                        If CopyDest.StartsWith("$(runtime.drivers)\") Then
-                            CopyDest = CopyDest.Replace("$(runtime.drivers)\", OutputDiectory & "Windows\System32\Drivers\")
+                        CopyDest = TempFileInfo.Name
+                        If CopyDest.StartsWith(InputDirectory) Then
+                            CopyDest = CopyDest.Replace(InputDirectory, OutputDiectory & "CopiedDirectlyFromInputDirectory\")
+                        Else
+                            CopyDest = CopyDest.Replace(ResourceDirectory, OutputDiectory)
                         End If
                     Else
                         CopyDest = TempFileInfo.CabPath
@@ -255,6 +259,62 @@ Class MainWindow
                     Continue For
                 End Try
             Next
+            If Not IsKeepStructure Then
+                Try
+                    File.Copy(MUMFilePath, OutputDiectory & MUMFileName & "\update.mum")
+                Catch ex As Exception
+                    AddMessage("无法将 MUM 文件""" & MUMFilePath & """复制到""" & OutputDiectory & MUMFileName & "\update.mum""，因为发生错误: " & ex.Message)
+                    nFail += 1
+                    prgProgress.Value += 1
+                    SetTaskbarProgess(prgProgress.Maximum, 0, prgProgress.Value)
+                    Continue For
+                End Try
+                AddMessage("已成功从""" & MUMFilePath & """复制文件到""" & OutputDiectory & MUMFileName & "\update.mum""。")
+                If File.Exists(InputDirectory & "\" & MUMFileName & ".cat") Then
+                    AddMessage("找到和 MUM 文件""" & MUMFilePath & """匹配的 CAT 文件，正在复制到""" & OutputDiectory & MUMFileName & "\update.cat""。")
+                    Try
+                        File.Copy(InputDirectory & "\" & MUMFileName & ".cat", OutputDiectory & MUMFileName & "\update.cat")
+                    Catch ex As Exception
+                        AddMessage("无法将 CAT 文件""" & InputDirectory & "\" & MUMFileName & ".cat" & """复制到""" & OutputDiectory & MUMFileName & "\update.cat""，因为发生错误: " & ex.Message)
+                        nFail += 1
+                        prgProgress.Value += 1
+                        SetTaskbarProgess(prgProgress.Maximum, 0, prgProgress.Value)
+                        Continue For
+                    End Try
+                    AddMessage("已成功从""" & InputDirectory & "\" & MUMFileName & ".cat" & """复制文件到""" & OutputDiectory & MUMFileName & "\update.cat""。")
+                End If
+            Else
+                If Not Directory.Exists(OutputDiectory & "Windows\Servicing\Packages\") Then
+                    Try
+                        Directory.CreateDirectory(OutputDiectory & "Windows\Servicing\Packages\")
+                    Catch ex As Exception
+
+                    End Try
+                End If
+                Try
+                    File.Copy(MUMFilePath, MUMFilePath.Replace(InputDirectory, OutputDiectory & "Windows\Servicing\Packages\"))
+                Catch ex As Exception
+                    AddMessage("无法将 MUM 文件""" & MUMFilePath & """复制到""" & MUMFilePath.Replace(InputDirectory, OutputDiectory & "Windows\Servicing\Packages\") & """，因为发生错误: " & ex.Message)
+                    nFail += 1
+                    prgProgress.Value += 1
+                    SetTaskbarProgess(prgProgress.Maximum, 0, prgProgress.Value)
+                    Continue For
+                End Try
+                AddMessage("已成功从""" & MUMFilePath & """复制文件到""" & MUMFilePath.Replace(InputDirectory, OutputDiectory & "Windows\Servicing\Packages\") & """。")
+                If File.Exists(InputDirectory & "\" & MUMFileName & ".cat") Then
+                    AddMessage("找到和 MUM 文件""" & MUMFilePath & """匹配的 CAT 文件，正在复制到""" & OutputDiectory & "Windows\Servicing\Packages\" & MUMFileName & ".cat""。")
+                    Try
+                        File.Copy(InputDirectory & "\" & MUMFileName & ".cat", OutputDiectory & "Windows\Servicing\Packages\" & MUMFileName & ".cat")
+                    Catch ex As Exception
+                        AddMessage("无法将 CAT 文件""" & InputDirectory & "\" & MUMFileName & ".cat" & """复制到""" & OutputDiectory & "Windows\Servicing\Packages\" & MUMFileName & ".cat""，因为发生错误: " & ex.Message)
+                        nFail += 1
+                        prgProgress.Value += 1
+                        SetTaskbarProgess(prgProgress.Maximum, 0, prgProgress.Value)
+                        Continue For
+                    End Try
+                    AddMessage("已成功从""" & InputDirectory & "\" & MUMFileName & ".cat" & """复制文件到""" & OutputDiectory & MUMFileName & "\update.cat""。")
+                End If
+            End If
             AddMessage("对包描述文件""" & MUMFilePath & """的操作成功完成。")
             nSuccess += 1
             prgProgress.Value += 1
